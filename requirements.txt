@@ -1,3 +1,7 @@
 boto3
 llama-cpp-python
+openai
 psycopg[binary]
+pypdf
+openpyxl
+python-pptx

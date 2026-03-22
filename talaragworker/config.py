@@ -24,6 +24,19 @@ def _get_int(name: str, default: int) -> int:
         raise ValueError(f"Environment variable {name} must be an integer") from exc
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"Environment variable {name} must be a boolean")
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -37,7 +50,9 @@ class Settings:
     db_username: str
     db_password: str
     db_name: str
-    llm_model: str
+    use_openai: bool
+    llm_model: str | None
+    openai_embedding_model: str | None
     poll_interval_seconds: int
     sqs_wait_time_seconds: int
     documents_table: str
@@ -57,6 +72,7 @@ class Settings:
 def load_settings() -> Settings:
     load_dotenv_if_present()
 
+    use_openai = _get_bool("USE_OPENAI", False)
     embedding_storage_format = os.getenv("EMBEDDING_STORAGE_FORMAT", "vector").strip().lower()
     if embedding_storage_format not in {"vector", "json"}:
         raise ValueError("EMBEDDING_STORAGE_FORMAT must be either 'vector' or 'json'")
@@ -83,6 +99,14 @@ def load_settings() -> Settings:
             "SQS_VISIBILITY_HEARTBEAT_SECONDS must be smaller than SQS_VISIBILITY_TIMEOUT_SECONDS"
         )
 
+    llm_model = (os.getenv("LLM_MODEL") or "").strip() or None
+    openai_embedding_model = (os.getenv("OPENAI_EMBEDDING_MODEL") or "").strip() or None
+    if use_openai:
+        if not openai_embedding_model:
+            raise ValueError("Missing required environment variable: OPENAI_EMBEDDING_MODEL")
+    elif not llm_model:
+        raise ValueError("Missing required environment variable: LLM_MODEL")
+
     return Settings(
         app_env=os.getenv("APP_ENV", "development"),
         aws_region=os.getenv("AWS_REGION", "ap-southeast-1"),
@@ -94,13 +118,15 @@ def load_settings() -> Settings:
         db_port=_get_int("DB_PORT", 5432),
         db_username=_get_required("DB_USERNAME"),
         db_password=_get_required("DB_PASSWORD"),
-        db_name=os.getenv("DB_NAME", "postgres"),
-        llm_model=_get_required("LLM_MODEL"),
+        db_name=os.getenv("DB_NAME", "talaragapi_development"),
+        use_openai=use_openai,
+        llm_model=llm_model,
+        openai_embedding_model=openai_embedding_model,
         poll_interval_seconds=_get_int("POLL_INTERVAL_SECONDS", 5),
         sqs_wait_time_seconds=_get_int("SQS_WAIT_TIME_SECONDS", 20),
         documents_table=os.getenv("DOCUMENTS_TABLE", "documents"),
         document_id_column=os.getenv("DOCUMENT_ID_COLUMN", "id"),
-        document_s3_key_column=os.getenv("DOCUMENT_S3_KEY_COLUMN", "content"),
+        document_s3_key_column=os.getenv("DOCUMENT_S3_KEY_COLUMN", os.getenv("DOCUMENT_CONTENT_COLUMN", "storage_key")),
         document_status_column=os.getenv("DOCUMENT_STATUS_COLUMN", "status"),
         document_embeddings_table=os.getenv("DOCUMENT_EMBEDDINGS_TABLE", "document_embeddings"),
         document_embeddings_document_id_column=os.getenv("DOCUMENT_EMBEDDINGS_DOCUMENT_ID_COLUMN", "document_id"),
@@ -119,5 +145,4 @@ REQUIRED_ENVIRONMENT_VARIABLES = (
     "DB_HOST",
     "DB_USERNAME",
     "DB_PASSWORD",
-    "LLM_MODEL",
 )

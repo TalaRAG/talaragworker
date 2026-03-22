@@ -1,6 +1,6 @@
 # talaragworker
 
-Local SQS worker that loads document metadata from PostgreSQL, fetches file content from S3, generates embeddings with `llama-cpp-python`, and stores them in a `pgvector` column on `document_embeddings`.
+Local SQS worker that loads document metadata from PostgreSQL, fetches file content from S3, generates embeddings with either `llama-cpp-python` or OpenAI, and stores them in a `pgvector` column on `document_embeddings`.
 
 ## Install
 
@@ -32,7 +32,7 @@ python -m talaragworker
 
 ## Environment variables
 
-Copy values from `.env.example`. Required settings are:
+Copy values from `.env.example`. Required base settings are:
 
 ```bash
 SQS_QUEUE=https://sqs.ap-southeast-1.amazonaws.com/123456789012/my-queue.fifo
@@ -41,7 +41,19 @@ DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_USERNAME=postgres
 DB_PASSWORD=postgres
+USE_OPENAI=false
+```
+
+Embedding backend settings are mode-specific:
+
+```bash
+# Offline / local embeddings
+USE_OPENAI=false
 LLM_MODEL=/absolute/path/to/embedding-model.gguf
+
+# Online / OpenAI embeddings
+USE_OPENAI=true
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 ```
 
 Optional settings and defaults are:
@@ -49,14 +61,15 @@ Optional settings and defaults are:
 ```bash
 APP_ENV=development
 AWS_REGION=ap-southeast-1
-DB_NAME=postgres
+DB_NAME=talaragapi_development
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 POLL_INTERVAL_SECONDS=5
 SQS_WAIT_TIME_SECONDS=20
 SQS_VISIBILITY_TIMEOUT_SECONDS=3600
 SQS_VISIBILITY_HEARTBEAT_SECONDS=300
 DOCUMENTS_TABLE=documents
 DOCUMENT_ID_COLUMN=id
-DOCUMENT_S3_KEY_COLUMN=content
+DOCUMENT_S3_KEY_COLUMN=storage_key
 DOCUMENT_STATUS_COLUMN=status
 DOCUMENT_EMBEDDINGS_TABLE=document_embeddings
 DOCUMENT_EMBEDDINGS_DOCUMENT_ID_COLUMN=document_id
@@ -68,9 +81,11 @@ EMBEDDING_CHUNK_SIZE=1000
 EMBEDDING_CHUNK_OVERLAP=200
 ```
 
-`python -m talaragworker --mode doctor` checks that required environment variables are present, that numeric and enum settings pass the same validation rules used by the worker, that `SQS_QUEUE` resolves to a reachable FIFO queue, that `S3_BUCKET_NAME` is reachable, and that `LLM_MODEL` points to an existing file.
+`python -m talaragworker --mode doctor` checks that required environment variables are present, that numeric and enum settings pass the same validation rules used by the worker, that `SQS_QUEUE` resolves to a reachable FIFO queue, that `S3_BUCKET_NAME` is reachable, and, when `USE_OPENAI=false`, that `LLM_MODEL` points to an existing file.
 
-`DOCUMENT_S3_KEY_COLUMN` is the column on `DOCUMENTS_TABLE` that stores the S3 object key for the source file. `DOCUMENT_EMBEDDINGS_CONTENT_COLUMN` controls which column on `DOCUMENT_EMBEDDINGS_TABLE` stores each embedded chunk's text.
+`DOCUMENT_S3_KEY_COLUMN` is the column on `DOCUMENTS_TABLE` that stores the S3 object key for the source file. In the current API schema that column is `storage_key`. `DOCUMENT_EMBEDDINGS_CONTENT_COLUMN` controls which column on `DOCUMENT_EMBEDDINGS_TABLE` stores each embedded chunk's text.
+
+When `USE_OPENAI=true`, the worker uses the OpenAI Python SDK and reads authentication from the standard OpenAI environment variables such as `OPENAI_API_KEY`.
 
 The worker validates that `SQS_QUEUE` resolves to an actual FIFO queue and will refuse to start against a standard queue.
 

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import boto3
 
 from talaragworker.config import Settings
+
+
+@dataclass(frozen=True)
+class S3Object:
+    body: bytes
+    content_type: str | None
 
 
 class S3Client:
@@ -14,7 +22,9 @@ class S3Client:
     def ensure_bucket_is_reachable(self) -> None:
         self._client.head_bucket(Bucket=self._bucket_name)
 
-    def fetch_text(self, object_key: str) -> str:
+    def fetch_object(self, object_key: str) -> S3Object:
         response = self._client.get_object(Bucket=self._bucket_name, Key=object_key)
-        body = response["Body"].read()
-        return body.decode("utf-8")
+        return S3Object(
+            body=response["Body"].read(),
+            content_type=response.get("ContentType"),
+        )

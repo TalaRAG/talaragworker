@@ -81,6 +81,30 @@ class Database:
             self._connection.rollback()
             raise
 
+    def claim_document_for_processing(self, document_id: Any) -> bool:
+        query = sql.SQL(
+            """
+            UPDATE {documents_table}
+            SET {status_column} = %s
+            WHERE {id_column} = %s
+              AND {status_column} = %s
+            """
+        ).format(
+            documents_table=sql.Identifier(self._settings.documents_table),
+            status_column=sql.Identifier(self._settings.document_status_column),
+            id_column=sql.Identifier(self._settings.document_id_column),
+        )
+
+        try:
+            with self._connection.cursor() as cursor:
+                cursor.execute(query, ("processing", document_id, "pending"))
+                claimed = cursor.rowcount == 1
+            self._connection.commit()
+            return claimed
+        except Exception:
+            self._connection.rollback()
+            raise
+
     def replace_document_embeddings(self, document_id: Any, chunks: list[EmbeddedChunk]) -> None:
         delete_query = sql.SQL(
             """
