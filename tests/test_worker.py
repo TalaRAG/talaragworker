@@ -29,7 +29,10 @@ class WorkerTests(unittest.TestCase):
         )
         self.module_patcher.start()
         sys.modules.pop("talaragworker.worker", None)
-        self._process_message = import_module("talaragworker.worker")._process_message
+        worker_module = import_module("talaragworker.worker")
+        self._process_message = worker_module._process_message
+        self._log_runtime_targets = worker_module._log_runtime_targets
+        self._log_expected_environment = worker_module._log_expected_environment
 
     def tearDown(self) -> None:
         self.module_patcher.stop()
@@ -137,6 +140,53 @@ class WorkerTests(unittest.TestCase):
 
         database.update_document_status.assert_called_with("doc-1", "failed")
         sqs_client.delete_message.assert_called_once_with("receipt-1")
+
+    def test_startup_logging_includes_runtime_targets_and_expected_environment(self) -> None:
+        logger = MagicMock(spec=logging.Logger)
+        settings = SimpleNamespace(
+            app_env="production",
+            aws_region="ap-southeast-1",
+            sqs_queue="https://sqs.ap-southeast-1.amazonaws.com/123456789012/talarag-prod.fifo",
+            s3_bucket_name="talarag-prod-documents",
+            db_host="db.internal",
+            db_port=5432,
+            db_name="talaragapi_production",
+            db_username="talarag",
+            documents_table="documents",
+            document_id_column="id",
+            document_s3_key_column="storage_key",
+            document_status_column="status",
+            poll_interval_seconds=5,
+            sqs_wait_time_seconds=20,
+            use_openai=True,
+            openai_embedding_model="text-embedding-3-large",
+            llm_model=None,
+        )
+
+        self._log_runtime_targets(logger, settings)
+        self._log_expected_environment(logger, settings)
+
+        logger.info.assert_any_call(
+            "Worker targets: app_env=%s aws_region=%s sqs_queue=%s s3_bucket=%s db_host=%s db_port=%s db_name=%s documents_table=%s document_id_column=%s document_s3_key_column=%s",
+            "production",
+            "ap-southeast-1",
+            "https://sqs.ap-southeast-1.amazonaws.com/123456789012/talarag-prod.fifo",
+            "talarag-prod-documents",
+            "db.internal",
+            5432,
+            "talaragapi_production",
+            "documents",
+            "id",
+            "storage_key",
+        )
+        logger.info.assert_any_call("Expected worker environment:")
+        logger.info.assert_any_call("  %s=%s", "DB_NAME", "talaragapi_production")
+        logger.info.assert_any_call(
+            "  %s=%s",
+            "SQS_QUEUE",
+            "https://sqs.ap-southeast-1.amazonaws.com/123456789012/talarag-prod.fifo",
+        )
+        logger.info.assert_any_call("  %s=%s", "OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
 
 
 if __name__ == "__main__":

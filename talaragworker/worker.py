@@ -22,6 +22,8 @@ def run() -> None:
         "Embedding backend configured as %s",
         "openai" if settings.use_openai else "local",
     )
+    _log_runtime_targets(logger, settings)
+    _log_expected_environment(logger, settings)
 
     database = Database(settings)
     sqs_client = SQSClient(settings)
@@ -155,3 +157,49 @@ def _mark_failed(logger: logging.Logger, database: Database, document_id: Any) -
         logger.info("Updated document_id=%s status to failed", document_id)
     except Exception:
         logger.exception("Failed to update document_id=%s status to failed", document_id)
+
+
+def _log_runtime_targets(logger: logging.Logger, settings: Settings) -> None:
+    logger.info(
+        "Worker targets: app_env=%s aws_region=%s sqs_queue=%s s3_bucket=%s db_host=%s db_port=%s db_name=%s documents_table=%s document_id_column=%s document_s3_key_column=%s",
+        settings.app_env,
+        settings.aws_region,
+        settings.sqs_queue,
+        settings.s3_bucket_name,
+        settings.db_host,
+        settings.db_port,
+        settings.db_name,
+        settings.documents_table,
+        settings.document_id_column,
+        settings.document_s3_key_column,
+    )
+
+
+def _log_expected_environment(logger: logging.Logger, settings: Settings) -> None:
+    expected_values = {
+        "APP_ENV": settings.app_env,
+        "AWS_REGION": settings.aws_region,
+        "SQS_QUEUE": settings.sqs_queue,
+        "S3_BUCKET_NAME": settings.s3_bucket_name,
+        "DB_HOST": settings.db_host,
+        "DB_PORT": str(settings.db_port),
+        "DB_NAME": settings.db_name,
+        "DB_USERNAME": settings.db_username,
+        "DOCUMENTS_TABLE": settings.documents_table,
+        "DOCUMENT_ID_COLUMN": settings.document_id_column,
+        "DOCUMENT_S3_KEY_COLUMN": settings.document_s3_key_column,
+        "DOCUMENT_STATUS_COLUMN": settings.document_status_column,
+        "POLL_INTERVAL_SECONDS": str(settings.poll_interval_seconds),
+        "SQS_WAIT_TIME_SECONDS": str(settings.sqs_wait_time_seconds),
+    }
+
+    if settings.use_openai:
+        expected_values["USE_OPENAI"] = "true"
+        expected_values["OPENAI_EMBEDDING_MODEL"] = settings.openai_embedding_model or ""
+    else:
+        expected_values["USE_OPENAI"] = "false"
+        expected_values["LLM_MODEL"] = settings.llm_model or ""
+
+    logger.info("Expected worker environment:")
+    for key, value in expected_values.items():
+        logger.info("  %s=%s", key, value)
