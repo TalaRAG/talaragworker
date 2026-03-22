@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "talaragworker"
+version = "0.1.0"
+description = "SQS-driven document embedding worker"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "boto3>=1.35.0",
+  "llama-cpp-python>=0.3.0",
+  "psycopg[binary]>=3.2.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["talaragworker*"]
