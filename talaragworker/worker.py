@@ -92,24 +92,25 @@ def _process_message(
         raise RuntimeError(f"Document is missing an S3 key for document_id={document_id}")
 
     try:
-        database.update_document_status(document_id, "processing")
-        logger.info("Updated document_id=%s status to processing", document_id)
+        with sqs_client.lease_message(receipt_handle, logger):
+            database.update_document_status(document_id, "processing")
+            logger.info("Updated document_id=%s status to processing", document_id)
 
-        logger.info("Fetching S3 object for document_id=%s key=%s", document_id, document.s3_key)
-        content = s3_client.fetch_text(document.s3_key)
-        logger.info("Fetched S3 object for document_id=%s", document_id)
+            logger.info("Fetching S3 object for document_id=%s key=%s", document_id, document.s3_key)
+            content = s3_client.fetch_text(document.s3_key)
+            logger.info("Fetched S3 object for document_id=%s", document_id)
 
-        chunks = embedder.embed_document(content)
-        logger.info("Generated %s embedding chunk(s) for document_id=%s", len(chunks), document_id)
+            chunks = embedder.embed_document(content)
+            logger.info("Generated %s embedding chunk(s) for document_id=%s", len(chunks), document_id)
 
-        database.replace_document_embeddings(document_id, chunks)
-        logger.info("Inserted embeddings for document_id=%s", document_id)
+            database.replace_document_embeddings(document_id, chunks)
+            logger.info("Inserted embeddings for document_id=%s", document_id)
 
-        database.update_document_status(document_id, "done")
-        logger.info("Updated document_id=%s status to done", document_id)
+            database.update_document_status(document_id, "done")
+            logger.info("Updated document_id=%s status to done", document_id)
 
-        sqs_client.delete_message(receipt_handle)
-        logger.info("Deleted SQS message for document_id=%s", document_id)
+            sqs_client.delete_message(receipt_handle)
+            logger.info("Deleted SQS message for document_id=%s", document_id)
     except Exception:
         _mark_failed(logger, database, document_id)
         logger.exception("Failed to process document_id=%s", document_id)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from talaragworker.env import load_dotenv_if_present
+
 
 def _get_required(name: str) -> str:
     value = os.getenv(name)
@@ -27,6 +29,8 @@ class Settings:
     app_env: str
     aws_region: str
     sqs_queue: str
+    sqs_visibility_timeout_seconds: int
+    sqs_visibility_heartbeat_seconds: int
     s3_bucket_name: str
     db_host: str
     db_port: int
@@ -51,6 +55,8 @@ class Settings:
 
 
 def load_settings() -> Settings:
+    load_dotenv_if_present()
+
     embedding_storage_format = os.getenv("EMBEDDING_STORAGE_FORMAT", "vector").strip().lower()
     if embedding_storage_format not in {"vector", "json"}:
         raise ValueError("EMBEDDING_STORAGE_FORMAT must be either 'vector' or 'json'")
@@ -64,10 +70,25 @@ def load_settings() -> Settings:
     if chunk_overlap >= chunk_size:
         raise ValueError("EMBEDDING_CHUNK_OVERLAP must be smaller than EMBEDDING_CHUNK_SIZE")
 
+    sqs_visibility_timeout_seconds = _get_int("SQS_VISIBILITY_TIMEOUT_SECONDS", 3600)
+    sqs_visibility_heartbeat_seconds = _get_int("SQS_VISIBILITY_HEARTBEAT_SECONDS", 300)
+    if sqs_visibility_timeout_seconds <= 0:
+        raise ValueError("SQS_VISIBILITY_TIMEOUT_SECONDS must be greater than 0")
+    if sqs_visibility_timeout_seconds > 43200:
+        raise ValueError("SQS_VISIBILITY_TIMEOUT_SECONDS must be 43200 seconds or less")
+    if sqs_visibility_heartbeat_seconds <= 0:
+        raise ValueError("SQS_VISIBILITY_HEARTBEAT_SECONDS must be greater than 0")
+    if sqs_visibility_heartbeat_seconds >= sqs_visibility_timeout_seconds:
+        raise ValueError(
+            "SQS_VISIBILITY_HEARTBEAT_SECONDS must be smaller than SQS_VISIBILITY_TIMEOUT_SECONDS"
+        )
+
     return Settings(
         app_env=os.getenv("APP_ENV", "development"),
         aws_region=os.getenv("AWS_REGION", "ap-southeast-1"),
         sqs_queue=_get_required("SQS_QUEUE"),
+        sqs_visibility_timeout_seconds=sqs_visibility_timeout_seconds,
+        sqs_visibility_heartbeat_seconds=sqs_visibility_heartbeat_seconds,
         s3_bucket_name=_get_required("S3_BUCKET_NAME"),
         db_host=_get_required("DB_HOST"),
         db_port=_get_int("DB_PORT", 5432),
@@ -90,3 +111,13 @@ def load_settings() -> Settings:
         embedding_chunk_size=chunk_size,
         embedding_chunk_overlap=chunk_overlap,
     )
+
+
+REQUIRED_ENVIRONMENT_VARIABLES = (
+    "SQS_QUEUE",
+    "S3_BUCKET_NAME",
+    "DB_HOST",
+    "DB_USERNAME",
+    "DB_PASSWORD",
+    "LLM_MODEL",
+)
