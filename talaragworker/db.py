@@ -15,7 +15,7 @@ from talaragworker.embedder import EmbeddedChunk
 @dataclass(frozen=True)
 class DocumentRecord:
     document_id: Any
-    content: str
+    s3_key: str
 
 
 class Database:
@@ -37,14 +37,14 @@ class Database:
     def fetch_document(self, document_id: Any) -> DocumentRecord | None:
         query = sql.SQL(
             """
-            SELECT {id_column}, {content_column}
+            SELECT {id_column}, {s3_key_column}
             FROM {documents_table}
             WHERE {id_column} = %s
             LIMIT 1
             """
         ).format(
             id_column=sql.Identifier(self._settings.document_id_column),
-            content_column=sql.Identifier(self._settings.document_content_column),
+            s3_key_column=sql.Identifier(self._settings.document_s3_key_column),
             documents_table=sql.Identifier(self._settings.documents_table),
         )
 
@@ -57,8 +57,8 @@ class Database:
             return None
 
         self._connection.rollback()
-        content = row.get(self._settings.document_content_column)
-        return DocumentRecord(document_id=row[self._settings.document_id_column], content=content or "")
+        s3_key = row.get(self._settings.document_s3_key_column)
+        return DocumentRecord(document_id=row[self._settings.document_id_column], s3_key=s3_key or "")
 
     def update_document_status(self, document_id: Any, status: str) -> None:
         query = sql.SQL(

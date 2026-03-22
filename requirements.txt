@@ -1,0 +1,3 @@
+boto3
+llama-cpp-python
+psycopg[binary]

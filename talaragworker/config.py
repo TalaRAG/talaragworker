@@ -27,6 +27,7 @@ class Settings:
     app_env: str
     aws_region: str
     sqs_queue: str
+    s3_bucket_name: str
     db_host: str
     db_port: int
     db_username: str
@@ -37,7 +38,7 @@ class Settings:
     sqs_wait_time_seconds: int
     documents_table: str
     document_id_column: str
-    document_content_column: str
+    document_s3_key_column: str
     document_status_column: str
     document_embeddings_table: str
     document_embeddings_document_id_column: str
@@ -67,6 +68,7 @@ def load_settings() -> Settings:
         app_env=os.getenv("APP_ENV", "development"),
         aws_region=os.getenv("AWS_REGION", "ap-southeast-1"),
         sqs_queue=_get_required("SQS_QUEUE"),
+        s3_bucket_name=_get_required("S3_BUCKET_NAME"),
         db_host=_get_required("DB_HOST"),
         db_port=_get_int("DB_PORT", 5432),
         db_username=_get_required("DB_USERNAME"),
@@ -77,7 +79,7 @@ def load_settings() -> Settings:
         sqs_wait_time_seconds=_get_int("SQS_WAIT_TIME_SECONDS", 20),
         documents_table=os.getenv("DOCUMENTS_TABLE", "documents"),
         document_id_column=os.getenv("DOCUMENT_ID_COLUMN", "id"),
-        document_content_column=os.getenv("DOCUMENT_CONTENT_COLUMN", "content"),
+        document_s3_key_column=os.getenv("DOCUMENT_S3_KEY_COLUMN", "content"),
         document_status_column=os.getenv("DOCUMENT_STATUS_COLUMN", "status"),
         document_embeddings_table=os.getenv("DOCUMENT_EMBEDDINGS_TABLE", "document_embeddings"),
         document_embeddings_document_id_column=os.getenv("DOCUMENT_EMBEDDINGS_DOCUMENT_ID_COLUMN", "document_id"),

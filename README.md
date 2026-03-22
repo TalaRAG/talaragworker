@@ -1,11 +1,27 @@
 # talaragworker
 
-Local SQS worker that loads documents from PostgreSQL, generates embeddings with `llama-cpp-python`, and stores them in a `pgvector` column on `document_embeddings`.
+Local SQS worker that loads document metadata from PostgreSQL, fetches file content from S3, generates embeddings with `llama-cpp-python`, and stores them in a `pgvector` column on `document_embeddings`.
 
 ## Install
 
 ```bash
 python -m pip install -e .
+```
+
+## Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Update `.env` with your queue, database, and model path values.
+
+The worker reads configuration from process environment variables. Before running it, load `.env` into your shell:
+
+```bash
+set -a
+source .env
+set +a
 ```
 
 ## Run
@@ -14,37 +30,42 @@ python -m pip install -e .
 python -m talaragworker
 ```
 
-## Required environment variables
+## Environment variables
+
+Copy values from `.env.example`. Required settings are:
 
 ```bash
-export AWS_REGION=ap-southeast-1
-export SQS_QUEUE=https://sqs.ap-southeast-1.amazonaws.com/123456789012/my-queue
-export DB_HOST=127.0.0.1
-export DB_PORT=5432
-export DB_USERNAME=postgres
-export DB_PASSWORD=postgres
-export DB_NAME=postgres
-export LLM_MODEL=/absolute/path/to/embedding-model.gguf
+SQS_QUEUE=https://sqs.ap-southeast-1.amazonaws.com/123456789012/my-queue
+S3_BUCKET_NAME=my-document-bucket
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+LLM_MODEL=/absolute/path/to/embedding-model.gguf
 ```
 
-## Optional environment variables
+Optional settings and defaults are:
 
 ```bash
-export APP_ENV=development
-export POLL_INTERVAL_SECONDS=5
-export SQS_WAIT_TIME_SECONDS=20
-export DOCUMENTS_TABLE=documents
-export DOCUMENT_ID_COLUMN=id
-export DOCUMENT_CONTENT_COLUMN=content
-export DOCUMENT_STATUS_COLUMN=status
-export DOCUMENT_EMBEDDINGS_TABLE=document_embeddings
-export DOCUMENT_EMBEDDINGS_DOCUMENT_ID_COLUMN=document_id
-export DOCUMENT_EMBEDDINGS_CHUNK_INDEX_COLUMN=chunk_index
-export DOCUMENT_EMBEDDINGS_CONTENT_COLUMN=content
-export DOCUMENT_EMBEDDINGS_VECTOR_COLUMN=embedding
-export EMBEDDING_STORAGE_FORMAT=vector
-export EMBEDDING_CHUNK_SIZE=1000
-export EMBEDDING_CHUNK_OVERLAP=200
+APP_ENV=development
+AWS_REGION=ap-southeast-1
+DB_NAME=postgres
+POLL_INTERVAL_SECONDS=5
+SQS_WAIT_TIME_SECONDS=20
+DOCUMENTS_TABLE=documents
+DOCUMENT_ID_COLUMN=id
+DOCUMENT_S3_KEY_COLUMN=content
+DOCUMENT_STATUS_COLUMN=status
+DOCUMENT_EMBEDDINGS_TABLE=document_embeddings
+DOCUMENT_EMBEDDINGS_DOCUMENT_ID_COLUMN=document_id
+DOCUMENT_EMBEDDINGS_CHUNK_INDEX_COLUMN=chunk_index
+DOCUMENT_EMBEDDINGS_CONTENT_COLUMN=content
+DOCUMENT_EMBEDDINGS_VECTOR_COLUMN=embedding
+EMBEDDING_STORAGE_FORMAT=vector
+EMBEDDING_CHUNK_SIZE=1000
+EMBEDDING_CHUNK_OVERLAP=200
 ```
 
-By default the worker writes embeddings as `pgvector` values using `EMBEDDING_STORAGE_FORMAT=vector`.
+`DOCUMENT_S3_KEY_COLUMN` is the column on `DOCUMENTS_TABLE` that stores the S3 object key for the source file. `DOCUMENT_EMBEDDINGS_CONTENT_COLUMN` controls which column on `DOCUMENT_EMBEDDINGS_TABLE` stores each embedded chunk's text.
+
+By default the worker writes embeddings as `pgvector` values using `EMBEDDING_STORAGE_FORMAT=vector`. Set `EMBEDDING_STORAGE_FORMAT=json` if the embeddings column stores JSON instead.
